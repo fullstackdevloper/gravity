@@ -1261,6 +1261,7 @@ class GFFormDisplay {
 		}
 
 		$is_valid = true;
+		$all_fields_empty = true;
 		foreach ( $form['fields'] as &$field ) {
 			/* @var GF_Field $field */
 
@@ -1282,6 +1283,10 @@ class GFFormDisplay {
 			$value = RGFormsModel::get_field_value( $field );
 
 			$input_type = RGFormsModel::get_input_type( $field );
+
+			if ( ! self::is_empty( $field, $form['id'] ) ){
+				$all_fields_empty = false;
+			}
 
 			//display error message if field is marked as required and the submitted value is empty
 			if ( $field->isRequired && self::is_empty( $field, $form['id'] ) ) {
@@ -1327,9 +1332,9 @@ class GFFormDisplay {
 			}
 		}
 
-		$is_last_page = rgpost( "gform_target_page_number_{$form['id']}" ) == '0';
-		if ( $is_last_page && self::is_form_empty( $form ) ){
-			foreach ( $form['fields'] as &$field ) {
+		foreach ( $form['fields'] as &$field ) {
+			//if all fields are empty, fail validation on all fields
+			if ( $all_fields_empty ){
 				$field->failed_validation = true;
 				$field->validation_message = esc_html__( 'At least one field must be filled out', 'gravityforms' );
 				$is_valid = false;
@@ -1342,16 +1347,6 @@ class GFFormDisplay {
 		$failed_validation_page = $validation_result['failed_validation_page'];
 
 		return $is_valid;
-	}
-
-	public static function is_form_empty( $form ){
-
-		foreach ( $form['fields'] as $field ) {
-			if ( ! self::is_empty( $field, $form['id'] ) ) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	public static function failed_state_validation( $form_id, $field, $value ) {
@@ -1634,16 +1629,6 @@ class GFFormDisplay {
 		return false;
 	}
 
-	/**
-	 * Get init script and all necessary data for conditional logic.
-	 *
-	 * @todo: Replace much of the field value retrieval with a get_original_value() method in GF_Field class.
-	 *
-	 * @param       $form
-	 * @param array $field_values
-	 *
-	 * @return string
-	 */
 	private static function get_conditional_logic( $form, $field_values = array() ) {
 		$logics            = '';
 		$dependents        = '';
@@ -1683,13 +1668,12 @@ class GFFormDisplay {
 			//-- Saving default values so that they can be restored when toggling conditional logic ---
 			$field_val  = '';
 			$input_type = RGFormsModel::get_input_type( $field );
-			$inputs = $field->get_entry_inputs();
 
 			//get parameter value if pre-populate is enabled
 			if ( $field->allowsPrepopulate ) {
-				if ( is_array( $inputs ) ) {
+				if ( is_array( $field->inputs ) ) {
 					$field_val = array();
-					foreach ( $inputs as $input ) {
+					foreach ( $field->inputs as $input ) {
 						$field_val[ "input_{$input['id']}" ] = RGFormsModel::get_parameter_value( rgar( $input, 'name' ), $field_values, $field );
 					}
 				} else if ( $input_type == 'time' ) { // maintained for backwards compatibility. The Time field now has an inputs array.
@@ -1698,7 +1682,7 @@ class GFFormDisplay {
 						$field_val   = array();
 						$field_val[] = esc_attr( $matches[1] ); //hour
 						$field_val[] = esc_attr( $matches[2] ); //minute
-						$field_val[] = rgar( $matches, 3 );     //am or pm
+						$field_val[] = rgar( $matches, 3 ); //am or pm
 					}
 				} else if ( $input_type == 'list' ) {
 					$parameter_val = RGFormsModel::get_parameter_value( $field->inputName, $field_values, $field );
@@ -1738,45 +1722,24 @@ class GFFormDisplay {
 				}
 			} else if ( ! empty( $field_val ) ) {
 
-				$input_type = GFFormsModel::get_input_type( $field );
-
-				switch( $input_type ) {
-					case 'date':
-						// for date fields; that are multi-input; and where the field value is a string
-						// (happens with prepop, default value will always be an array for multi-input date fields)
-						if( is_array( $field->inputs ) && ( ! is_array( $field_val ) || ! isset( $field_val['m'] ) ) ) {
-
-							$format    = empty( $field->dateFormat ) ? 'mdy' : esc_attr( $field->dateFormat );
-							$date_info = GFcommon::parse_date( $field_val, $format );
-
-							// converts date to array( 'm' => 1, 'd' => '13', 'y' => '1987' )
-							$field_val = $field->get_date_array_by_format( array( $date_info['month'], $date_info['day'], $date_info['year'] ) );
-
-						}
-						break;
-					case 'time':
-						$ampm_key = key( array_slice( $field_val, -1, 1, true ) );
-						$field_val[ $ampm_key ] = strtolower( $field_val[ $ampm_key ] );
-						break;
-					case 'address':
-
-						$state_input_id = sprintf( '%s.4', $field->id );
-						if( isset( $field_val[ $state_input_id ] ) && ! $field_val[ $state_input_id ] ) {
-							$field_val[ $state_input_id ] = $field->defaultState;
-						}
-
-						$country_input_id = sprintf( '%s.6', $field->id );
-						if( isset( $field_val[ $country_input_id ] ) && ! $field_val[ $country_input_id ] ) {
-							$field_val[ $country_input_id ] = $field->defaultCountry;
-						}
-
-						break;
+				if ( GFFormsModel::get_input_type( $field ) == 'date' ) {
+					//format date
+					$format    = empty( $field->dateFormat ) ? 'mdy' : esc_attr( $field->dateFormat );
+					$date_info = GFcommon::parse_date( $field_val, $format );
+					switch ( $format ) {
+						case 'mdy':
+							$field_val = $date_info['month'] . '/' . $date_info['day'] . '/' . $date_info['year'];
+							break;
+						case 'dmy':
+							$field_val = $date_info['day'] . '/' . $date_info['month'] . '/' . $date_info['year'];
+							break;
+						case 'ymd':
+							$field_val = $date_info['year'] . '/' . $date_info['month'] . '/' . $date_info['day'];
+							break;
+					}
 				}
-
 				$default_values[ $field->id ] = $field_val;
-
 			}
-
 		}
 
 		$button_conditional_script = '';

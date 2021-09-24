@@ -215,7 +215,7 @@ function gformDeleteUploadedFile(formId, fieldId, deleteButton){
 
     //displaying single file upload field
     parent.find("input[type=\"file\"]").removeClass("gform_hidden");
-parent.find("input[type=\"file\"]").attr("multiple","");
+
     //displaying post image label
     parent.find(".ginput_post_image_file").show();
 

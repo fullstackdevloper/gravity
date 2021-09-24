@@ -51,17 +51,6 @@ abstract class GFPaymentAddOn extends GFFeedAddOn {
 
 	}
 
-	public function init() {
-
-		parent::init();
-
-		add_filter( 'gform_confirmation', array( $this, 'confirmation' ), 20, 4 );
-
-		add_filter( 'gform_validation', array( $this, 'validation' ), 20 );
-		add_filter( 'gform_entry_post_save', array( $this, 'entry_post_save' ), 10, 2 );
-
-	}
-
 	public function init_admin() {
 
 		parent::init_admin();
@@ -81,11 +70,22 @@ abstract class GFPaymentAddOn extends GFFeedAddOn {
 		}
 	}
 
+	public function init_frontend() {
+
+		parent::init_frontend();
+
+		add_filter( 'gform_confirmation', array( $this, 'confirmation' ), 20, 4 );
+
+		add_filter( 'gform_validation', array( $this, 'validation' ), 20 );
+		add_filter( 'gform_entry_post_save', array( $this, 'entry_post_save' ), 10, 2 );
+
+	}
+
 	public function init_ajax() {
 		parent::init_ajax();
 
 		add_action( 'wp_ajax_gaddon_cancel_subscription', array( $this, 'ajax_cancel_subscription' ) );
-		add_action( 'gform_before_delete_field', array( $this, 'before_delete_field' ), 10, 2 );
+
 	}
 
 	protected function setup() {
@@ -1163,8 +1163,7 @@ abstract class GFPaymentAddOn extends GFFeedAddOn {
 	}
 
 	public function requires_credit_card_message() {
-		$url = add_query_arg( array( 'view' => null, 'subview' => null ) );
-		return sprintf( __( "You must add a Credit Card field to your form before creating a feed. Let's go %sadd one%s!", 'gravityforms' ), "<a href='" . esc_url( $url ) . "'>", '</a>' );
+		return sprintf( __( "You must add a Credit Card field to your form before creating a feed. Let's go %sadd one%s!", 'gravityforms' ), "<a href='" . add_query_arg( array( 'view' => null, 'subview' => null ) ) . "'>", '</a>' );
 	}
 
 	public function feed_settings_fields() {
@@ -2101,28 +2100,6 @@ abstract class GFPaymentAddOn extends GFFeedAddOn {
 			die( '0' );
 		}
 
-	}
-
-	/**
-	 * Target of gform_before_delete_field hook. Sets relevant payment feeds to inactive when the credit card field is deleted.
-	 *
-	 * @param $form_id . ID of the form being edited.
-	 * @param $field_id . ID of the field being deleted.
-	 */
-	public function before_delete_field( $form_id, $field_id ) {
-		if ( $this->_requires_credit_card ) {
-			$form  = GFAPI::get_form( $form_id );
-			$field = $this->get_credit_card_field( $form );
-
-			if ( is_object( $field ) && $field->id == $field_id ) {
-				$feeds = $this->get_feeds( $form_id );
-				foreach ( $feeds as $feed ) {
-					if ( $feed['is_active'] ) {
-						$this->update_feed_active( $feed['id'], 0 );
-					}
-				}
-			}
-		}
 	}
 
 	//--------------- Notes ------------------
