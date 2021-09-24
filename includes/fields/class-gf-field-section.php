@@ -9,7 +9,7 @@ class GF_Field_Section extends GF_Field {
 	public $type = 'section';
 
 	public function get_form_editor_field_title() {
-		return esc_attr__( 'Section', 'gravityforms' );
+		return __( 'Section', 'gravityforms' );
 	}
 
 	function get_form_editor_field_settings() {

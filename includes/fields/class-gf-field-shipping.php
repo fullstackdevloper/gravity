@@ -23,7 +23,7 @@ class GF_Field_Shipping extends GF_Field {
 	}
 
 	public function get_form_editor_field_title() {
-		return esc_attr__( 'Shipping', 'gravityforms' );
+		return __( 'Shipping', 'gravityforms' );
 	}
 
 }
